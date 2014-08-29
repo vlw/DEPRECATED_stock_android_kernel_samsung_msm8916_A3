@@ -17,6 +17,7 @@
 #include <linux/platform_device.h>
 #include <linux/stringify.h>
 #include <linux/types.h>
+#include <linux/debugfs.h>
 
 /* panel id type */
 struct panel_id {
@@ -432,6 +433,9 @@ struct mdss_panel_info {
 	int panel_state;
 #endif
 	struct mdss_livedisplay_ctx *livedisplay;
+
+	/* debugfs structure for the panel */
+	struct mdss_panel_debugfs_info *debugfs_info;
 };
 
 struct mipi_samsung_driver_data {
@@ -478,6 +482,16 @@ struct mdss_panel_data {
 #if defined(CONFIG_FB_MSM_MDSS_SAMSUNG)
 	void *panel_private;
 #endif
+};
+
+struct mdss_panel_debugfs_info {
+	struct dentry *root;
+	u32 xres;
+	u32 yres;
+	struct lcd_panel_info lcdc;
+	u32 override_flag;
+	char frame_rate;
+	struct mdss_panel_debugfs_info *next;
 };
 
 /**
@@ -657,4 +671,16 @@ int mdss_panel_get_boot_cfg(void);
  * returns true if mdss is ready, else returns false.
  */
 bool mdss_is_ready(void);
+#ifdef CONFIG_FB_MSM_MDSS
+int mdss_panel_debugfs_init(struct mdss_panel_info *panel_info);
+void mdss_panel_debugfs_cleanup(struct mdss_panel_info *panel_info);
+void mdss_panel_debugfsinfo_to_panelinfo(struct mdss_panel_info *panel_info);
+#else
+static inline int mdss_panel_debugfs_init(
+			struct mdss_panel_info *panel_info) { return 0; };
+static inline void mdss_panel_debugfs_cleanup(
+			struct mdss_panel_info *panel_info) { };
+static inline void mdss_panel_debugfsinfo_to_panelinfo(
+			struct mdss_panel_info *panel_info) { };
+#endif
 #endif /* MDSS_PANEL_H */
