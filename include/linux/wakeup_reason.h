@@ -20,10 +20,13 @@
 
 #include <linux/types.h>
 
+#define MAX_SUSPEND_ABORT_LEN 256
+
 void log_wakeup_reason(int irq);
 #ifdef CONFIG_ARCH_MSM
 void update_wakeup_reason_stats(int irq);
 #endif
+void log_suspend_abort_reason(const char *fmt, ...);
 const int* get_wakeup_reasons(size_t *len);
 void clear_wakeup_reasons(void);
 
