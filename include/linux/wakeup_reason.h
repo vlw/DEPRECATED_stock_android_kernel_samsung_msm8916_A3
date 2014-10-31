@@ -27,6 +27,7 @@ void log_wakeup_reason(int irq);
 void update_wakeup_reason_stats(int irq);
 #endif
 void log_suspend_abort_reason(const char *fmt, ...);
+int check_wakeup_reason(int irq);
 const int* get_wakeup_reasons(size_t *len);
 void clear_wakeup_reasons(void);
 
