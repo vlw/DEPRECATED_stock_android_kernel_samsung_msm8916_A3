@@ -1408,7 +1408,9 @@ static int mdss_dsi_clk_ctrl_sub(struct mdss_dsi_ctrl_pdata *ctrl,
 			if (((mdss_dsi_ulps_feature_enabled(pdata)) &&
 				(pdata->panel_info.blank_state !=
 				 MDSS_PANEL_BLANK_BLANK)) ||
-				(pdata->panel_info.ulps_suspend_enabled))
+				(pdata->panel_info.ulps_suspend_enabled &&
+				(pdata->panel_info.blank_state ==
+				 MDSS_PANEL_BLANK_BLANK)))
 				mdss_dsi_ulps_config(ctrl, 1);
 
 			mdss_dsi_link_clk_stop(ctrl);
