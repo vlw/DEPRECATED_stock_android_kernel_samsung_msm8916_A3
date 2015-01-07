@@ -1095,13 +1095,13 @@ void mdss_fb_set_backlight(struct msm_fb_data_type *mfd, u32 bkl_lvl)
 		 * as well as setting bl_level to bkl_lvl even though the
 		 * backlight has been set to the scaled value.
 		 */
-		if (mfd->bl_level_scaled == temp) {
+		if (mfd->bl_level_old == temp) {
 			mfd->bl_level = bkl_lvl;
 		} else {
 			pr_debug("backlight sent to panel :%d\n", temp);
 			pdata->set_backlight(pdata, temp);
 			mfd->bl_level = bkl_lvl;
-			mfd->bl_level_scaled = temp;
+			mfd->bl_level_old = temp;
 			bl_notify_needed = true;
 		}
 		if (bl_notify_needed)
@@ -1127,7 +1127,7 @@ void mdss_fb_update_backlight(struct msm_fb_data_type *mfd)
 				(*mfd->mdp.ad_calc_bl)(mfd, temp, &temp,
 								&bl_notify);
 			pdata->set_backlight(pdata, temp);
-			mfd->bl_level_scaled = mfd->unset_bl_level;
+			mfd->bl_level_old = mfd->unset_bl_level;
 			mfd->bl_updated = 1;
 			mdss_fb_bl_update_notify(mfd);
 		}
@@ -1203,17 +1203,6 @@ static int mdss_fb_unblank_sub(struct msm_fb_data_type *mfd)
 			schedule_delayed_work(&mfd->idle_notify_work,
 				msecs_to_jiffies(mfd->idle_time));
 	}
-
-	/* Reset the backlight only if the panel was off */
-	if (mdss_panel_is_power_off(cur_power_state)) {
-		mutex_lock(&mfd->bl_lock);
-		if (!mfd->bl_updated) {
-			mfd->bl_updated = 1;
-			mdss_fb_set_backlight(mfd, mfd->unset_bl_level);
-		}
-		mutex_unlock(&mfd->bl_lock);
-	}
-
 error:
 	return ret;
 }
@@ -1297,7 +1286,6 @@ static int mdss_fb_blank_sub(int blank_mode, struct fb_info *info,
 				/* Stop Display thread */
 				if (mfd->disp_thread)
 					mdss_fb_stop_disp_thread(mfd);
-				mdss_fb_set_backlight(mfd, 0);
 				mfd->bl_updated = 0;
 			}
 			mfd->panel_power_state = req_power_state;
