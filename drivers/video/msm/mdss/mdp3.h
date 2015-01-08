@@ -180,6 +180,7 @@ struct mdp3_hw_resource {
 	struct regulator *vdd_cx;
 	struct regulator *fs;
 	bool fs_ena;
+	bool smart_blit_en;
 };
 
 struct mdp3_img_data {
