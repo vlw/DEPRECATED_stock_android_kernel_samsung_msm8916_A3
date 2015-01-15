@@ -1398,6 +1398,10 @@ static int mdss_dsi_event_handler(struct mdss_panel_data *pdata,
 			pr_debug("%s : event=%d, calling panel registered callback\n", __func__, event);
 			rc = ctrl_pdata->registered(pdata);
 		}
+        break;
+	case MDSS_EVENT_DSI_PANEL_STATUS:
+		if (ctrl_pdata->check_status)
+			rc = ctrl_pdata->check_status(ctrl_pdata);
 		break;
 	default:
 #if defined(CONFIG_FB_MSM_MDSS_SAMSUNG)

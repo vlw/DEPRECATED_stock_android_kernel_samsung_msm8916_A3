@@ -185,6 +185,9 @@ struct mdss_intf_recovery {
  *					case there was any errors detected.
  * @MDSS_EVENT_INTF_RESTORE: Event to restore the interface in case there
  *				was any errors detected during normal operation.
+ * @ MDSS_EVENT_DSI_PANEL_STATUS:Event to check the panel status
+ *				<= 0: panel check fail
+ *				>  0: panel check success
  */
 enum mdss_intf_events {
 	MDSS_EVENT_RESET = 1,
@@ -212,6 +215,7 @@ enum mdss_intf_events {
 	MDSS_SAMSUNG_EVENT_FRAME_UPDATE,
 	MDSS_SAMSUNG_EVENT_FB_EVENT_CALLBACK,
 #endif
+	MDSS_EVENT_DSI_PANEL_STATUS,
 };
 
 struct lcd_panel_info {
