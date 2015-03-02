@@ -21,7 +21,6 @@
 #include <linux/io.h>
 #include <linux/module.h>
 #include <linux/spinlock.h>
-#include <linux/syscore_ops.h>
 #include <linux/irqdomain.h>
 #include <linux/of.h>
 #include <linux/err.h>
@@ -350,80 +349,6 @@ static struct irq_chip msm_gpio_irq_chip = {
 	.irq_disable	= msm_gpio_irq_disable,
 };
 
-#ifdef CONFIG_PM
-static int msm_gpio_suspend(void)
-{
-	unsigned long irq_flags;
-	unsigned long i;
-	int ngpio = msm_gpio.gpio_chip.ngpio;
-
-	spin_lock_irqsave(&tlmm_lock, irq_flags);
-	for_each_set_bit(i, msm_gpio.enabled_irqs, ngpio)
-		__msm_gpio_set_intr_cfg_enable(i, 0);
-
-	for_each_set_bit(i, msm_gpio.wake_irqs, ngpio)
-		__msm_gpio_set_intr_cfg_enable(i, 1);
-	mb();
-	spin_unlock_irqrestore(&tlmm_lock, irq_flags);
-	return 0;
-}
-
-void msm_gpio_show_resume_irq(void)
-{
-	unsigned long irq_flags;
-	int i, irq, intstat;
-	int ngpio = msm_gpio.gpio_chip.ngpio;
-
-	if (!msm_show_resume_irq_mask)
-		return;
-
-	spin_lock_irqsave(&tlmm_lock, irq_flags);
-	for_each_set_bit(i, msm_gpio.wake_irqs, ngpio) {
-		intstat = __msm_gpio_get_intr_status(i);
-		if (intstat) {
-			struct irq_desc *desc;
-			const char *name = "null";
-
-			irq = msm_gpio_to_irq(&msm_gpio.gpio_chip, i);
-			desc = irq_to_desc(irq);
-			if (desc == NULL)
-				name = "stray irq";
-			else if (desc->action && desc->action->name)
-				name = desc->action->name;
-
-			pr_warning("%s: %d triggered %s\n",
-					__func__, irq, name);
-		}
-	}
-	spin_unlock_irqrestore(&tlmm_lock, irq_flags);
-}
-
-static void msm_gpio_resume(void)
-{
-	unsigned long irq_flags;
-	unsigned long i;
-	int ngpio = msm_gpio.gpio_chip.ngpio;
-
-	msm_gpio_show_resume_irq();
-
-	spin_lock_irqsave(&tlmm_lock, irq_flags);
-	for_each_set_bit(i, msm_gpio.wake_irqs, ngpio)
-		__msm_gpio_set_intr_cfg_enable(i, 0);
-
-	for_each_set_bit(i, msm_gpio.enabled_irqs, ngpio)
-		__msm_gpio_set_intr_cfg_enable(i, 1);
-	mb();
-	spin_unlock_irqrestore(&tlmm_lock, irq_flags);
-}
-#else
-#define msm_gpio_suspend NULL
-#define msm_gpio_resume NULL
-#endif
-
-static struct syscore_ops msm_gpio_syscore_ops = {
-	.suspend = msm_gpio_suspend,
-	.resume = msm_gpio_resume,
-};
 #endif /* CONFIG_USE_PINCTRL_IRQ */
 
 static void msm_tlmm_set_field(const struct tlmm_field_cfg *configs,
@@ -548,7 +473,6 @@ static int msm_gpio_setup_irqchip(struct platform_device *pdev)
 				ret);
 		return ret;
 	}
-	register_syscore_ops(&msm_gpio_syscore_ops);
 	return 0;
 }
 #else
@@ -609,9 +533,7 @@ static struct of_device_id msm_gpio_of_match[] = {
 static int msm_gpio_remove(struct platform_device *pdev)
 {
 	int ret;
-#ifndef CONFIG_USE_PINCTRL_IRQ
-	unregister_syscore_ops(&msm_gpio_syscore_ops);
-#endif
+
 	ret = gpiochip_remove(&msm_gpio.gpio_chip);
 	if (ret < 0)
 		return ret;
