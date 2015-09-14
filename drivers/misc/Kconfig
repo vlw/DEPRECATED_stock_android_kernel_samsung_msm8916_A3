@@ -869,6 +869,21 @@ config SEC_GPIO_SETTINGS
 	  Use this driver to configure active,
 	  suspend settings of gpios
 
+config GENERIC_BLN
+	bool "Generic BLN support for backlight notification"
+	depends on SYSFS && EXPERIMENTAL
+	default y
+	help
+		Say Y here to enable the backlight notification
+		for android led-notification (modified liblight needed)
+         
+config GENERIC_BLN_EMULATE_BUTTONS_LED
+	bool "Emulate buttons led"
+	depends on GENERIC_BLN && EXPERIMENTAL
+	default n
+	help
+		Say Y here to simulate buttons led
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
