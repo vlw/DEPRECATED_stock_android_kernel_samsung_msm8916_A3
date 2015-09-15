@@ -22,6 +22,10 @@
 #include <linux/qpnp/pwm.h>
 #include <linux/err.h>
 
+#ifdef CONFIG_POWERSUSPEND
+#include <linux/powersuspend.h>
+#endif
+
 #include "mdss_dsi.h"
 
 #include "mdss_livedisplay.h"
@@ -704,7 +708,9 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 		pr_err("%s: Invalid input data\n", __func__);
 		return -EINVAL;
 	}
-
+#ifdef CONFIG_POWERSUSPEND
+        set_power_suspend_state_panel_hook(POWER_SUSPEND_INACTIVE);
+#endif
 	pinfo = &pdata->panel_info;
 	ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 				panel_data);
@@ -751,7 +757,9 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 		pr_err("%s: Invalid input data\n", __func__);
 		return -EINVAL;
 	}
-
+#ifdef CONFIG_POWERSUSPEND
+        set_power_suspend_state_panel_hook(POWER_SUSPEND_ACTIVE);
+#endif
 	pinfo = &pdata->panel_info;
 	ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 				panel_data);
