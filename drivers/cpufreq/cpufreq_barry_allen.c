@@ -39,6 +39,8 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/cpufreq_barry_allen.h>
 
+#define MAX_RT_PRIO 100
+
 static int active_count;
 
 static bool ba_locked = false;
@@ -1344,12 +1346,7 @@ static int cpufreq_governor_barry_allen(struct cpufreq_policy *policy,
 			mutex_unlock(&gov_lock);
 			return 0;
 		}
-
-		//if (!have_governor_per_policy())
-			//WARN_ON(cpufreq_get_global_kobject());
-
-		//rc = sysfs_create_group(get_governor_parent_kobj(policy),
-				//&barry_allen_attr_group);
+		rc = sysfs_create_group(cpufreq_global_kobject,&barry_allen_attr_group);
 		if (rc) {
 			mutex_unlock(&gov_lock);
 			return rc;
@@ -1381,10 +1378,7 @@ static int cpufreq_governor_barry_allen(struct cpufreq_policy *policy,
 		cpufreq_unregister_notifier(
 			&cpufreq_notifier_block, CPUFREQ_TRANSITION_NOTIFIER);
 		idle_notifier_unregister(&cpufreq_barry_allen_idle_nb);
-		//sysfs_remove_group(get_governor_parent_kobj(policy),
-				//&barry_allen_attr_group);
-		//if (!have_governor_per_policy())
-			//cpufreq_put_global_kobject();
+		sysfs_remove_group(cpufreq_global_kobject,&barry_allen_attr_group);
 		mutex_unlock(&gov_lock);
 
 		break;
