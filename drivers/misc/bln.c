@@ -12,16 +12,21 @@
 
 #include <linux/platform_device.h>
 #include <linux/init.h>
-#include <linux/earlysuspend.h>
 #include <linux/device.h>
 #include <linux/miscdevice.h>
 #include <linux/bln.h>
 #include <linux/mutex.h>
-#include <linux/kthread.h>
 #include <linux/sched.h>
 #include <linux/delay.h>
+#include <linux/kthread.h>
+#include <linux/stat.h>
+
 #ifdef CONFIG_GENERIC_BLN_USE_WAKELOCK
 #include <linux/wakelock.h>
+#endif
+
+#ifdef CONFIG_POWERSUSPEND
+#include <linux/powersuspend.h>
 #endif
 
 static bool bln_enabled = false;
@@ -101,37 +106,43 @@ static void bln_power_off(void)
 	}
 }
 
-static void bln_early_suspend(struct early_suspend *h)
+static void bln_early_suspend(struct power_suspend *h)
 {
 	bln_suspended = true;
 }
 
-static void bln_late_resume(struct early_suspend *h)
+static void bln_late_resume(struct power_suspend *h)
 {
 	bln_suspended = false;
-
 	reset_bln_states();
 }
 
-static struct early_suspend bln_suspend_data = {
-	.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN + 1,
-	.suspend = bln_early_suspend,
-	.resume = bln_late_resume,
+#ifdef CONFIG_POWERSUSPEND
+static struct power_suspend bln_suspend_data = {
+    .suspend = bln_early_suspend,
+    .resume = bln_late_resume,
 };
+#endif  /* CONFIG_POWERSUSPEND */
 
-static void blink_thread(void)
+//static void blink_thread(void)
+int blink_thread(void *data)
 {
 	while(bln_suspended)
 	{
+	    if(bln_ongoing){
 		bln_enable_backlights(get_led_mask());
 		msleep(1000);
 		bln_disable_backlights(get_led_mask());
 		msleep(1000);
+	    }
 	}
+	return 0;
 }
 
 static void enable_led_notification(void)
 {
+	pr_info("%s: enable notification led\n", __FUNCTION__);
+
 	if (!bln_enabled)
 		return;
 
@@ -141,7 +152,7 @@ static void enable_led_notification(void)
 	*/
 	if (!bln_suspended)
 		return;
-	
+
 	/*
 	* If we already have a blink thread going
 	* don't start another one.
@@ -155,7 +166,8 @@ static void enable_led_notification(void)
 	if(!bln_blink_mode)
 		bln_enable_backlights(get_led_mask());
 	else
-		kthread_run(&blink_thread, NULL,"bln_blink_thread");
+//		kthread_run(&blink_thread, NULL,"bln_blink_thread");
+		kthread_run(blink_thread, NULL, "bln_blink_thread");
 
 	pr_info("%s: notification led enabled\n", __FUNCTION__);
 }
@@ -488,8 +500,9 @@ static int __init bln_control_init(void)
 	wake_lock_init(&bln_wake_lock, WAKE_LOCK_SUSPEND, "bln_kernel_wake_lock");
 #endif
 
-	register_early_suspend(&bln_suspend_data);
-
+#ifdef CONFIG_POWERSUSPEND
+	register_power_suspend(&bln_suspend_data);
+#endif
 	return 0;
 }
 
