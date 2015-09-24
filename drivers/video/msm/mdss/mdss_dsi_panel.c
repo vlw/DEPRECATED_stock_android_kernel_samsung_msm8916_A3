@@ -26,6 +26,12 @@
 #include <linux/powersuspend.h>
 #endif
 
+#ifdef CONFIG_CPUFREQ_HARDLIMIT
+#ifndef CONFIG_POWERSUSPEND
+#include <linux/cpufreq_hardlimit.h>
+#endif
+#endif
+
 #include "mdss_dsi.h"
 
 #include "mdss_livedisplay.h"
@@ -708,6 +714,12 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 		pr_err("%s: Invalid input data\n", __func__);
 		return -EINVAL;
 	}
+#ifdef CONFIG_CPUFREQ_HARDLIMIT
+#ifndef CONFIG_POWERSUSPEND
+	// Yank555.lu - Tell Hardlimit screen is being turned on
+	cpufreq_hardlimit_screen_on();
+#endif
+#endif
 #ifdef CONFIG_POWERSUSPEND
         set_power_suspend_state_panel_hook(POWER_SUSPEND_INACTIVE);
 #endif
@@ -757,6 +769,12 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 		pr_err("%s: Invalid input data\n", __func__);
 		return -EINVAL;
 	}
+#ifdef CONFIG_CPUFREQ_HARDLIMIT
+#ifndef CONFIG_POWERSUSPEND
+	// Yank555.lu - Tell Hardlimit screen is being turned off
+	cpufreq_hardlimit_screen_off();
+#endif
+#endif
 #ifdef CONFIG_POWERSUSPEND
         set_power_suspend_state_panel_hook(POWER_SUSPEND_ACTIVE);
 #endif
