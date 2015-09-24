@@ -51,6 +51,15 @@ config CPU_FREQ_STAT_DETAILS
 
 	  If in doubt, say N.
 
+config CPUFREQ_HARDLIMIT
+	bool "CPU Frequency hardlimit driver (Yank555.lu)"
+	default y
+	depends on CPU_FREQ
+	help
+	  Enforce CPU scaling min/max against interference by userspace, allow
+	  for screen on/off settings for scaling min/max and introducing
+	  wakeup kick to reduce wakeup lag (Yank555.lu)
+
 config CPU_FREQ_LIMIT
 	bool "CPU frequency limit API"
 	default n
