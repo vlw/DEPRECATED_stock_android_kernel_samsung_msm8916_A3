@@ -109,6 +109,13 @@ enum {
 	MODE_GPIO_HIGH,
 	MODE_GPIO_LOW,
 };
+enum dsi_lane_ids {
+	DSI_LANE_0,
+	DSI_LANE_1,
+	DSI_LANE_2,
+	DSI_LANE_3,
+	DSI_LANE_MAX,
+};
 
 struct mdss_rect {
 	u16 x;
@@ -305,6 +312,7 @@ struct mipi_panel_info {
 	u32  init_delay;
 	u32  power_off_delay;
 	u32  post_init_delay;
+	u32  phy_lane_clamp_mask;	/*DSI physical lane clamp mask*/
 };
 
 struct edp_panel_info {
