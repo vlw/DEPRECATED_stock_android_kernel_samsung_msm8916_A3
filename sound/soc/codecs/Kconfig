@@ -578,3 +578,6 @@ config SW_100K_TO_GND
 	bool "Detect FM radio cable"
 	help
 	use 100K ohm in pmic to detect specific cable
+
+config SOUND_CONTROL
+	bool "Sound control for msm8916"
