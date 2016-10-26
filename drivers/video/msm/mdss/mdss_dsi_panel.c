@@ -24,6 +24,8 @@
 
 #include "mdss_dsi.h"
 
+#include "mdss_livedisplay.h"
+
 #if defined(CONFIG_FB_MSM_MDSS_SAMSUNG)
 #include "mdss_debug.h"
 #include "samsung/ss_dsi_panel_common.h"
@@ -579,6 +581,12 @@ static int mdss_dsi_set_col_page_addr(struct mdss_panel_data *pdata)
 		}
 	}
 
+#ifdef CONFIG_YULONG_COLOR
+	color_enhancement_impl_apply();
+#endif
+
+	mdss_livedisplay_update(ctrl, MODE_UPDATE_ALL);
+
 end:
 	return 0;
 }
@@ -844,7 +852,7 @@ static void mdss_dsi_parse_trigger(struct device_node *np, char *trigger,
 }
 
 
-static int mdss_dsi_parse_dcs_cmds(struct device_node *np,
+int mdss_dsi_parse_dcs_cmds(struct device_node *np,
 		struct dsi_panel_cmds *pcmds, char *cmd_key, char *link_key)
 {
 	const char *data;
@@ -1354,6 +1362,7 @@ static int mdss_dsi_parse_panel_features(struct device_node *np,
 	pr_info("%s: force-clk-lane-hs %s \n",
 			__func__,
 			pinfo->mipi.force_clk_lane_hs ? "enabled" : "disabled");
+	mdss_livedisplay_parse_dt(np, pinfo);
 	return 0;
 }
 
