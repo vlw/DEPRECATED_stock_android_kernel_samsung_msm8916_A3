@@ -341,4 +341,6 @@ extern void sec_bat_check_cable_result_callback(struct device *dev, int cable_ty
 extern bool sec_bat_check_callback(struct sec_battery_info *battery);
 #endif
 
+void charger_control_init(struct sec_battery_info *info);
+
 #endif /* __SEC_BATTERY_H */
