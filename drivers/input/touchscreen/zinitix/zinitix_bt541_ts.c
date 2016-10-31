@@ -72,7 +72,7 @@ extern char *saved_command_line;
 #define TOUCH_POINT_MODE		0
 #endif
 
-#define MAX_SUPPORTED_FINGER_NUM	5 /* max 10 */
+#define MAX_SUPPORTED_FINGER_NUM	10 /* max 10 */
 
 #ifdef SUPPORTED_TOUCH_KEY
 #define NOT_SUPPORTED_TOUCH_DUMMY_KEY
