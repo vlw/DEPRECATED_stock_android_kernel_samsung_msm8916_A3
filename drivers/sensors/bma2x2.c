@@ -827,7 +827,7 @@ static int bma2x2_read_accel_z(struct i2c_client *client,
 		break;
 	}
 
-	return comres;
+	return comres*2;
 }
 
 static int bma2x2_open_cal(struct i2c_client *client)
@@ -893,9 +893,9 @@ static int bma2x2_read_accel_xyz(struct i2c_client *client,
 
 	bitwidth = bma2x2_sensor_bitwidth[sensor_type];
 
-	acc->x = (acc->x >> (16 - bitwidth));
-	acc->y = (acc->y >> (16 - bitwidth));
-	acc->z = (acc->z >> (16 - bitwidth));
+	acc->x = (acc->x >> (16 - bitwidth))*2;
+	acc->y = (acc->y >> (16 - bitwidth))*2;
+	acc->z = (acc->z >> (16 - bitwidth))*2;
 
 	remap_sensor_data(acc->v, client_data->place);
 	return comres;
