@@ -250,7 +250,7 @@ int adreno_ringbuffer_read_pm4_ucode(struct kgsl_device *device)
 		if (ret)
 		{
 			if((ret == -EAGAIN) && (system_state == SYSTEM_POWER_OFF))
-				return;
+				return 0;
 			goto err;
 		}
 
