@@ -313,7 +313,7 @@ int adreno_ringbuffer_read_pfp_ucode(struct kgsl_device *device)
 		if (ret)
 		{
 			if((ret == -EAGAIN) && (system_state == SYSTEM_POWER_OFF))
-				return;
+				return 0;
 			goto err;
 		}
 
