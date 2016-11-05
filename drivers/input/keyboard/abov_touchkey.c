@@ -33,6 +33,7 @@
 #include <asm/unaligned.h>
 #include <linux/regulator/consumer.h>
 #include <linux/pinctrl/consumer.h>
+#include <linux/bln.h>
 
 #ifdef CONFIG_OF
 #include <linux/of_gpio.h>
@@ -204,7 +205,10 @@ struct abov_tk_info {
 
 };
 
-
+#ifdef CONFIG_GENERIC_BLN
+struct abov_touchkey_platform_data *bln_abov_data;
+struct abov_tk_info *bln_info;
+#endif
 static int abov_tk_input_open(struct input_dev *dev);
 static void abov_tk_input_close(struct input_dev *dev);
 static int abov_tk_i2c_read_checksum(struct abov_tk_info *info);
@@ -1428,6 +1432,72 @@ static int abov_parse_dt(struct device *dev,
 }
 #endif
 
+#ifdef CONFIG_GENERIC_BLN
+
+static int abov_enable_touchkey_bln(int led_mask)
+{
+	u8 cmd;
+	int ret;
+	cmd = CMD_LED_ON;
+
+	ret = abov_tk_i2c_write(bln_info->client, ABOV_BTNSTATUS, &cmd, 1);
+	if (ret < 0) {
+		abov_touchled_cmd_reserved = 1;
+	    goto out;
+	}
+	msleep(20);
+	abov_touchled_cmd_reserved = 0;
+out:
+	abov_touchkey_led_status = CMD_LED_ON;
+	return 0;
+}
+
+static int abov_disable_touchkey_bln(int led_mask)
+{
+	u8 cmd;
+	int ret;
+	cmd = CMD_LED_OFF;
+
+	ret = abov_tk_i2c_write(bln_info->client, ABOV_BTNSTATUS, &cmd, 1);
+	if (ret < 0) {
+		abov_touchled_cmd_reserved = 1;
+	    goto out;
+	}
+	msleep(20);
+	abov_touchled_cmd_reserved = 0;
+out:
+	abov_touchkey_led_status = CMD_LED_OFF;
+	return 0;
+}
+
+static int abov_power_on(void)
+{
+	abov_power(bln_abov_data,true);
+	msleep(20);
+	return 0;
+}
+
+static int abov_power_off(void)
+{
+	u8 cmd;
+	int ret;
+	cmd = CMD_LED_OFF;
+	ret = abov_tk_i2c_write(bln_info->client, ABOV_BTNSTATUS, &cmd, 1);
+	abov_touchkey_led_status = CMD_LED_OFF;
+	abov_power(bln_abov_data,false);
+	msleep(20);
+	return 0;
+}
+
+static struct bln_implementation abov_touchkey_bln = {
+	.enable = abov_enable_touchkey_bln,
+	.disable = abov_disable_touchkey_bln,
+	.power_on = abov_power_on,
+	.power_off = abov_power_off,
+	.led_count = 1
+};
+#endif
+
 static int abov_tk_probe(struct i2c_client *client,
 				  const struct i2c_device_id *id)
 {
@@ -1595,6 +1665,12 @@ static int abov_tk_probe(struct i2c_client *client,
 			"%s: Failed to create input symbolic link\n",
 			__func__);
 	}
+
+#ifdef CONFIG_GENERIC_BLN
+	bln_abov_data = info->pdata;
+	bln_info = info;
+	register_bln_implementation(&abov_touchkey_bln);
+#endif
 
 	gpio_direction_output(info->pdata->gpio_tkey_led_en, 0);
 
