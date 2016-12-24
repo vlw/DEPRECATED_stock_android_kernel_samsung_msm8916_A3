@@ -118,14 +118,14 @@ void log_wakeup_reason(int irq)
 
 const int* get_wakeup_reasons(size_t *len)
 {
-	*len = irq_count;
+	*len = irqcount;
 	return irq_list;
 }
 
 void clear_wakeup_reasons(void)
 {
 	spin_lock(&resume_reason_lock);
-	irq_count = 0;
+	irqcount = 0;
 	spin_unlock(&resume_reason_lock);
 }
 
