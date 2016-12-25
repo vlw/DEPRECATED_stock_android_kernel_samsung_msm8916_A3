@@ -970,7 +970,7 @@ void msm_tlmm_v4_gp_show_resume_irq()
 		if (intstat) {
 			virq = msm_tlmm_gp_to_irq(gc, i);
 #ifdef CONFIG_SEC_PM_DEBUG
-			log_wakeup_reason(virq);
+			log_base_wakeup_reason(virq);
 			update_wakeup_reason_stats(virq);
 #endif
 		}
