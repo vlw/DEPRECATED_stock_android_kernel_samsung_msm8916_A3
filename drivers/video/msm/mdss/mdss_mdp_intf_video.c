@@ -1206,24 +1206,6 @@ static void mdss_mdp_handoff_programmable_fetch(struct mdss_mdp_ctl *ctl,
 	}
 }
 
-static void mdss_mdp_handoff_programmable_fetch(struct mdss_mdp_ctl *ctl,
-	struct mdss_mdp_video_ctx *ctx)
-{
-	u32 fetch_start_handoff, v_total_handoff, h_total_handoff;
-	ctl->prg_fet = 0;
-	if (mdp_video_read(ctx, MDSS_MDP_REG_INTF_CONFIG) & BIT(31)) {
-		fetch_start_handoff = mdp_video_read(ctx,
-			MDSS_MDP_REG_INTF_PROG_FETCH_START);
-		h_total_handoff = mdp_video_read(ctx,
-			MDSS_MDP_REG_INTF_HSYNC_CTL) >> 16;
-		v_total_handoff = mdp_video_read(ctx,
-			MDSS_MDP_REG_INTF_VSYNC_PERIOD_F0)/h_total_handoff;
-		ctl->prg_fet = v_total_handoff -
-			((fetch_start_handoff - 1)/h_total_handoff);
-		pr_debug("programmable fetch lines %d\n", ctl->prg_fet);
-	}
-}
-
 static int mdss_mdp_video_intfs_setup(struct mdss_mdp_ctl *ctl,
 	struct mdss_panel_data *pdata, int inum)
 {
