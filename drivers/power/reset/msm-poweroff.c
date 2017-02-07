@@ -323,6 +323,7 @@ static void msm_restart_prepare(const char *cmd)
                         warm_reboot_set = 1;
 #endif
 		} else {
+			qpnp_pon_set_restart_reason(PON_RESTART_REASON_UNKNOWN);
 			__raw_writel(0x77665501, restart_reason);
 		}
 		printk(KERN_NOTICE "%s : restart_reason = 0x%x\n",
