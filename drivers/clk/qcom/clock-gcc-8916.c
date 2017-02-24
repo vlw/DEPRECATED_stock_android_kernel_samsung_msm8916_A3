@@ -571,6 +571,22 @@ static struct rcg_clk vfe0_clk_src = {
 	},
 };
 
+static struct clk_freq_tbl ftbl_gcc_oxili_gfx3d_465_clk[] = {
+	F(  19200000,	      xo,   1,	  0,	0),
+	F(  50000000,  gpll0_aux,  16,	  0,	0),
+	F(  80000000,  gpll0_aux,  10,	  0,	0),
+	F( 100000000,  gpll0_aux,   8,	  0,	0),
+	F( 160000000,  gpll0_aux,   5,	  0,	0),
+	F( 177780000,  gpll0_aux, 4.5,	  0,	0),
+	F( 200000000,  gpll0_aux,   4,	  0,	0),
+	F( 266670000,  gpll0_aux,   3,	  0,	0),
+	F( 294912000,	   gpll1,   3,	  0,	0),
+	F( 310000000,	   gpll2,   3,	  0,	0),
+	F( 400000000,  gpll0_aux,   2,	  0,	0),
+	F( 465000000,      gpll2,   2,	  0,	0),
+	F_END
+};
+
 static struct clk_freq_tbl ftbl_gcc_oxili_gfx3d_clk[] = {
 	F(  19200000,	      xo,   1,	  0,	0),
 	F(  50000000,  gpll0_aux,  16,	  0,	0),
