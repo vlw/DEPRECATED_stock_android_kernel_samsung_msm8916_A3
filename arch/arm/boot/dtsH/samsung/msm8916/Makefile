@@ -67,23 +67,10 @@ ifeq ($(CONFIG_SEC_FORTUNA_PROJECT),y)
 endif
 
 ifeq ($(CONFIG_SEC_A3_EUR_PROJECT),y)
-	dtb-y += msm8916-sec-a3-eur-r00.dtb
-	dtb-y += msm8916-sec-a3-eur-r01.dtb
-endif
-
-ifeq ($(CONFIG_SEC_A3_PROJECT),y)
-	dtb-y += msm8916-sec-a3-r00.dtb
-	dtb-y += msm8916-sec-a3-r01.dtb
-	dtb-y += msm8916-sec-a3-r03.dtb
-endif
-
-ifeq ($(CONFIG_SEC_A33G_EUR_PROJECT),y)
-	ifeq ($(CONFIG_MACH_A33G_EUR_OPEN),y)
 		dtb-y += msm8916-sec-a33g-eur-r00.dtb
 		dtb-y += msm8916-sec-a33g-eur-r01.dtb
 		dtb-y += msm8916-sec-a33g-eur-r03.dtb
 		dtb-y += msm8916-sec-a33g-eur-r04.dtb
-	endif
 endif
 
 ifeq ($(CONFIG_SEC_J1_PROJECT),y)
