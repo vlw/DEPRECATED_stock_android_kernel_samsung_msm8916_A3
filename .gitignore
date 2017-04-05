@@ -34,6 +34,16 @@ modules.builtin
 *.rej
 *.gcno
 
+# minimal rules
+
+/*.scmversion
+/*.zip
+/*.tar.md5
+/*.sh
+/ares-tools/
+/ares-out/
+/ares-zip/
+
 #
 # Top-level generic files
 #
