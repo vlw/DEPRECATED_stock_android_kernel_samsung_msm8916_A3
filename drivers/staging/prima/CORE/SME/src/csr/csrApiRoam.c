@@ -437,7 +437,6 @@ eHalStatus csrInitChannelsForCC(tpAniSirGlobal pMac, driver_load_type init)
             break;
         case REINIT:
             vos_getCurrentCountryCode(&cc[0]);
-
             status = csrGetRegulatoryDomainForCountry(pMac,
                      cc, &regId, COUNTRY_QUERY);
             break;
@@ -558,7 +557,6 @@ eHalStatus csrUpdateChannelList(tpAniSirGlobal pMac)
     tANI_U8 i;
 
     limInitOperatingClasses((tHalHandle)pMac);
-
     numChan = sizeof(pMac->roam.validChannelList);
 
     if ( !HAL_STATUS_SUCCESS(csrGetCfgValidChannels(pMac,
@@ -596,7 +594,7 @@ eHalStatus csrUpdateChannelList(tpAniSirGlobal pMac)
         VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_INFO,
              "%s Supported Channel: %d\n", __func__, pChanList->chanParam[i].chanId);
     }
-
+    pChanList->regId = csrGetCurrentRegulatoryDomain(pMac);
     if(VOS_STATUS_SUCCESS != vos_mq_post_message(VOS_MODULE_ID_WDA, &msg))
     {
         VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_FATAL,
@@ -2306,7 +2304,6 @@ eHalStatus csrInitChannelList( tHalHandle hHal )
     // Apply the base channel list, power info, and set the Country code...
     csrApplyChannelPowerCountryInfo( pMac, &pMac->scan.base20MHzChannels, pMac->scan.countryCodeCurrent, eANI_BOOLEAN_TRUE );
     limInitOperatingClasses(hHal);
-
     return (status);
 }
 eHalStatus csrChangeConfigParams(tpAniSirGlobal pMac, 
@@ -3090,7 +3087,8 @@ eHalStatus csrRoamPrepareBssConfig(tpAniSirGlobal pMac, tCsrRoamProfile *pProfil
         }
         //validate CB
         pBssConfig->cbMode = csrGetCBModeFromIes(pMac, pBssDesc->channelId, pIes);
-
+        smsLog(pMac, LOG1, FL("Bss Cb is %d, join timeout is %d, HB thresh is %d,"),
+               pBssConfig->cbMode, pBssConfig->uJoinTimeOut,  pBssConfig->uHeartBeatThresh);
     }while(0);
     return (status);
 }
@@ -3483,7 +3481,6 @@ static eHalStatus csrGetRateSet( tpAniSirGlobal pMac,  tCsrRoamProfile *pProfile
     int i;
     eCsrCfgDot11Mode cfgDot11Mode;
     tANI_U8 *pDstRate;
-    tANI_U16 rateBitmap = 0;
     vos_mem_set(pOpRateSet, sizeof(tSirMacRateSet), 0);
     vos_mem_set(pExRateSet, sizeof(tSirMacRateSet), 0);
     VOS_ASSERT( pIes != NULL );
@@ -3507,7 +3504,6 @@ static eHalStatus csrGetRateSet( tpAniSirGlobal pMac,  tCsrRoamProfile *pProfile
             {
                 if ( csrRatesIsDot11RateSupported( pMac, pIes->SuppRates.rates[ i ] ) ) 
                 {
-                    csrAddRateBitmap(pIes->SuppRates.rates[ i ], &rateBitmap);
                     *pDstRate++ = pIes->SuppRates.rates[ i ];
                     pOpRateSet->numRates++;
                 }
@@ -3528,11 +3524,8 @@ static eHalStatus csrGetRateSet( tpAniSirGlobal pMac,  tCsrRoamProfile *pProfile
                 {
                     if ( csrRatesIsDot11RateSupported( pMac, pIes->ExtSuppRates.rates[ i ] ) ) 
                     {
-                        if (!csrIsRateAlreadyPresent(pIes->ExtSuppRates.rates[ i ], rateBitmap))
-                        {
-                            *pDstRate++ = pIes->ExtSuppRates.rates[ i ];
-                            pExRateSet->numRates++;
-                        }
+                        *pDstRate++ = pIes->ExtSuppRates.rates[ i ];
+                        pExRateSet->numRates++;
                     }
                 }
             }
@@ -7128,6 +7121,16 @@ eHalStatus csrRoamProcessDisassocDeauth( tpAniSirGlobal pMac, tSmeCmd *pCommand,
         {
             //Set the state to disconnect here 
             pMac->roam.roamSession[sessionId].connectState = eCSR_ASSOC_STATE_TYPE_NOT_CONNECTED;
+#ifdef WLAN_FEATURE_NEIGHBOR_ROAMING
+            //we don't need to run this timer any more
+            if (VOS_TIMER_STATE_RUNNING ==
+                pMac->roam.neighborRoamInfo.forcedInitialRoamTo5GHTimer.state)
+            {
+                status = vos_timer_stop(&pMac->roam.neighborRoamInfo.forcedInitialRoamTo5GHTimer);
+                if (status != eHAL_STATUS_SUCCESS)
+                    smsLog(pMac, LOGE, FL("Failed to Stop Forced 5G timer"));
+            }
+#endif
         }
     }
     else
@@ -10206,6 +10209,11 @@ void csrRoamCheckForLinkStatusChange( tpAniSirGlobal pMac, tSirSmeRsp *pSirMsg )
                                     }
 #endif
                          /* OBSS SCAN Indication will be sent to Firmware to start OBSS Scan */
+                                    smsLog(pMac, LOG1, FL("Current channel is %d,"
+                                           "OBSS cap is %d, Persona is %d"),
+                                           pSession->connectedProfile.operationChannel,
+                                           IS_HT40_OBSS_SCAN_FEATURE_ENABLE,
+                                           pSession->pCurRoamProfile->csrPersona);
                                     if( CSR_IS_CHANNEL_24GHZ(pSession->connectedProfile.operationChannel)
                                        && IS_HT40_OBSS_SCAN_FEATURE_ENABLE
                                        && (VOS_P2P_GO_MODE !=
@@ -14847,27 +14855,46 @@ static void csrRoamLinkUp(tpAniSirGlobal pMac, tCsrBssid bssid)
 #if   defined WLAN_FEATURE_NEIGHBOR_ROAMING
     {
         tANI_U32 sessionId = 0;
+        tpCsrNeighborRoamControlInfo pNeighborRoamInfo = &pMac->roam.neighborRoamInfo;
         /* Indicate the neighbor roal algorithm about the connect indication */
         csrRoamGetSessionIdFromBSSID(pMac, (tCsrBssid *)bssid, &sessionId);
         csrNeighborRoamIndicateConnect(pMac, sessionId, VOS_STATUS_SUCCESS);
 
-        // Making sure we are roaming force fully to 5GHz AP only once and
-        // only when we connected to 2.4GH AP only during initial association.
-        if(pMac->roam.neighborRoamInfo.cfgParams.neighborInitialForcedRoamTo5GhEnable &&
-               GetRFBand(pMac->roam.neighborRoamInfo.currAPoperationChannel) == SIR_BAND_2_4_GHZ)
+        /* Making sure we are roaming force fully to 5GHz AP only once and
+         * only when we connected to 2.4GH AP only during initial association.
+         */
+        if(pNeighborRoamInfo->cfgParams.neighborInitialForcedRoamTo5GhEnable &&
+          (GetRFBand(pNeighborRoamInfo->currAPoperationChannel) ==
+          SIR_BAND_2_4_GHZ)
+          )
         {
-            //Making ini value to false here only so we just roam to
-            //only once for whole driver load to unload tenure
-            pMac->roam.neighborRoamInfo.cfgParams.neighborInitialForcedRoamTo5GhEnable = VOS_FALSE;
-
-            status = vos_timer_start(&pMac->roam.neighborRoamInfo.forcedInitialRoamTo5GHTimer,
-                                     INITIAL_FORCED_ROAM_TO_5G_TIMER_PERIOD);
-            //MUKUL TODO: change the neighborResultsRefreshPeriod to some ini value reuqired ??
+            status = vos_timer_start(
+                         &pNeighborRoamInfo->forcedInitialRoamTo5GHTimer,
+                         INITIAL_FORCED_ROAM_TO_5G_TIMER_PERIOD);
             if ( status != VOS_STATUS_SUCCESS )
             {
-                smsLog(pMac, LOGE, FL("%s Neighbor forcedInitialRoamTo5GHTimer start failed with status %d"), __func__, status);
+                smsLog(pMac, LOGE,
+                       FL("forcedInitialRoamTo5GHTimer start failed status %d"),
+                       status);
+                //Send RSO start because in case 5G roaming
+                //host have not enabled at initial connection
+                csrRoamOffloadScan(pMac,ROAM_SCAN_OFFLOAD_START,REASON_CONNECT);
             }
-            smsLog(pMac, LOGE, FL("%s: Forced roam to 5G  started Timer"), __func__);
+            else
+            {
+                smsLog(pMac, LOG1, FL("%s: Forced roam to 5G  started Timer"),
+                       __func__);
+            }
+        }
+        /*
+         * Making ini value to false here only so we just roam to
+         * only once for whole driver load to unload tenure
+         * This feature is only applicable for first connection only
+         */
+        if(pNeighborRoamInfo->cfgParams.neighborInitialForcedRoamTo5GhEnable)
+        {
+            pNeighborRoamInfo->cfgParams.neighborInitialForcedRoamTo5GhEnable
+            = VOS_FALSE;
         }
     }
 #endif

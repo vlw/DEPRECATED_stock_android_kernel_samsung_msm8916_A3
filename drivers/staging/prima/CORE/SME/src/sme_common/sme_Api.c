@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2015 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2014 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -190,14 +190,9 @@ static eHalStatus initSmeCmdList(tpAniSirGlobal pMac)
                                              &pMac->sme.smeCmdFreeList)))
        goto end;
 
-    pCmd = (tSmeCmd *) vos_mem_vmalloc(sizeof(tSmeCmd) * pMac->sme.totalSmeCmd);
+    pCmd = vos_mem_malloc(sizeof(tSmeCmd) * pMac->sme.totalSmeCmd);
     if ( NULL == pCmd )
-    {
-       VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_ERROR,
-                 FL("fail to allocate memory %lu"),
-                    (unsigned long)(sizeof(tSmeCmd) * pMac->sme.totalSmeCmd));
        status = eHAL_STATUS_FAILURE;
-    }
     else
     {
        status = eHAL_STATUS_SUCCESS;
@@ -343,7 +338,7 @@ static eHalStatus freeSmeCmdList(tpAniSirGlobal pMac)
 
     if(NULL != pMac->sme.pSmeCmdBufAddr)
     {
-        vos_mem_vfree(pMac->sme.pSmeCmdBufAddr);
+        vos_mem_free(pMac->sme.pSmeCmdBufAddr);
         pMac->sme.pSmeCmdBufAddr = NULL;
     }
 
@@ -708,30 +703,6 @@ end:
     return status;
 }
 
-eHalStatus smeProcessPnoCommand(tpAniSirGlobal pMac, tSmeCmd *pCmd)
-{
-    tpSirPNOScanReq pnoReqBuf;
-    tSirMsgQ msgQ;
-
-    pnoReqBuf = vos_mem_malloc(sizeof(tSirPNOScanReq));
-    if ( NULL == pnoReqBuf )
-    {
-        smsLog(pMac, LOGE, FL("failed to allocate memory"));
-        return eHAL_STATUS_FAILURE;
-    }
-
-    vos_mem_copy(pnoReqBuf, &(pCmd->u.pnoInfo), sizeof(tSirPNOScanReq));
-
-    smsLog(pMac, LOG1, FL("post WDA_SET_PNO_REQ comamnd"));
-    msgQ.type = WDA_SET_PNO_REQ;
-    msgQ.reserved = 0;
-    msgQ.bodyptr = pnoReqBuf;
-    msgQ.bodyval = 0;
-    wdaPostCtrlMsg( pMac, &msgQ);
-
-    return eHAL_STATUS_SUCCESS;
-}
-
 tANI_BOOLEAN smeProcessCommand( tpAniSirGlobal pMac )
 {
     tANI_BOOLEAN fContinue = eANI_BOOLEAN_FALSE;
@@ -1031,22 +1002,7 @@ sme_process_cmd:
                                 }
                             }
                             break;
-                        case eSmeCommandPnoReq:
-                            csrLLUnlock( &pMac->sme.smeCmdActiveList );
-                            status = smeProcessPnoCommand(pMac, pCommand);
-                            if (!HAL_STATUS_SUCCESS(status)){
-                                smsLog(pMac, LOGE,
-                                  FL("failed to post SME PNO SCAN %d"), status);
-                            }
-                            //We need to re-run the command
-                            fContinue = eANI_BOOLEAN_TRUE;
 
-                            if (csrLLRemoveEntry(&pMac->sme.smeCmdActiveList,
-                                              &pCommand->Link, LL_ACCESS_LOCK))
-                            {
-                                csrReleaseCommand(pMac, pCommand);
-                            }
-                            break;
                         case eSmeCommandAddTs:
                         case eSmeCommandDelTs:
                             csrLLUnlock( &pMac->sme.smeCmdActiveList );
@@ -1966,6 +1922,28 @@ eHalStatus sme_getBcnMissRate(tHalHandle hHal, tANI_U8 sessionId, void *callback
     return eHAL_STATUS_FAILURE;
 }
 
+eHalStatus sme_EncryptMsgResponseHandler(tHalHandle hHal,
+                                      tpSirEncryptedDataRspParams pEncRspParams)
+{
+   tpAniSirGlobal pMac = PMAC_STRUCT( hHal );
+
+   if (NULL == pMac)
+   {
+       VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_FATAL,
+           "%s: pMac is null", __func__);
+       return eHAL_STATUS_FAILURE;
+   }
+   if (pMac->sme.pEncMsgInfoParams.pEncMsgCbk == NULL)
+   {
+       VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_ERROR,
+           "%s: HDD callback is null", __func__);
+       return eHAL_STATUS_FAILURE;
+   }
+   pMac->sme.pEncMsgInfoParams.pEncMsgCbk(pMac->sme.pEncMsgInfoParams.pUserData,
+                                        &pEncRspParams->encryptedDataRsp);
+   return eHAL_STATUS_SUCCESS;
+}
+
 /*--------------------------------------------------------------------------
 
   \brief sme_ProcessMsg() - The main message processor for SME.
@@ -2379,6 +2357,21 @@ eHalStatus sme_ProcessMsg(tHalHandle hHal, vos_msg_t* pMsg)
                 break;
 #endif /* FEATURE_WLAN_CH_AVOID */
 
+          case eWNI_SME_ENCRYPT_MSG_RSP:
+              if (pMsg->bodyptr)
+              {
+                  sme_EncryptMsgResponseHandler(pMac, pMsg->bodyptr);
+                  vos_mem_free(pMsg->bodyptr);
+              }
+              else
+              {
+                  smsLog(pMac, LOGE,
+                         "Empty rsp message for (eWNI_SME_ENCRYPT_MSG_RSP),"
+                         " nothing to process");
+              }
+              break ;
+
+
           default:
 
              if ( ( pMsg->type >= eWNI_SME_MSG_TYPES_BEGIN )
@@ -2719,7 +2712,6 @@ eHalStatus sme_ScanRequest(tHalHandle hHal, tANI_U8 sessionId, tCsrScanRequest *
         {
             smsLog(pMac, LOGE, FL("fScanEnable %d isCoexScoIndSet: %d "),
                      pMac->scan.fScanEnable, pMac->isCoexScoIndSet);
-            status = eHAL_STATUS_RESOURCES;
         }
     } while( 0 );
 
@@ -3794,7 +3786,6 @@ eHalStatus sme_GetConfigParam(tHalHandle hHal, tSmeConfigParams *pParam)
          return status;
       }
 #endif
-      pParam->fBtcEnableIndTimerVal = pMac->fBtcEnableIndTimerVal;
       sme_ReleaseGlobalLock( &pMac->sme );
    }
 
@@ -4921,6 +4912,46 @@ eHalStatus sme_GetStatistics(tHalHandle hHal, eCsrStatsRequesterType requesterId
 
    return (status);
 
+}
+
+eHalStatus sme_GetFwStats(tHalHandle hHal, tANI_U32 stats, void *data,
+                                                        void *callback)
+{
+   tpAniSirGlobal pMac = PMAC_STRUCT( hHal );
+   vos_msg_t msg;
+   tSirFWStatsGetReq *pGetFWStatsReq;
+
+   smsLog(pMac, LOG1, FL(" ENTER stats = %d "),stats);
+
+   if ( eHAL_STATUS_SUCCESS ==  sme_AcquireGlobalLock( &pMac->sme ))
+   {
+       pGetFWStatsReq = (tSirFWStatsGetReq *)vos_mem_malloc(sizeof(tSirFWStatsGetReq));
+       if ( NULL == pGetFWStatsReq)
+       {
+          smsLog(pMac, LOGE, FL("Not able to allocate memory for "
+               "WDA_FW_STATS_GET_REQ"));
+          sme_ReleaseGlobalLock( &pMac->sme );
+          return eHAL_STATUS_FAILURE;
+       }
+       pGetFWStatsReq->stats = stats;
+       pGetFWStatsReq->callback = (tSirFWStatsCallback)callback;
+       pGetFWStatsReq->data = data;
+
+       msg.type = WDA_FW_STATS_GET_REQ;
+       msg.reserved = 0;
+       msg.bodyptr = pGetFWStatsReq;
+       if(VOS_STATUS_SUCCESS != vos_mq_post_message(VOS_MQ_ID_WDA, &msg))
+       {
+            smsLog(pMac, LOGE,
+              FL("Not able to post WDA_FW_STATS_GET_REQ message to HAL"));
+            vos_mem_free(pGetFWStatsReq);
+            sme_ReleaseGlobalLock( &pMac->sme );
+            return eHAL_STATUS_FAILURE;
+       }
+       sme_ReleaseGlobalLock( &pMac->sme );
+       return eHAL_STATUS_SUCCESS;
+   }
+   return eHAL_STATUS_FAILURE;
 }
 
 /* ---------------------------------------------------------------------------
@@ -7660,6 +7691,11 @@ eHalStatus sme_HandleChangeCountryCode(tpAniSirGlobal pMac,  void *pMsgBuf)
    {
        //if 11d has priority, clear currentCountryBssid & countryCode11d to get
        //set again if we find AP with 11d info during scan
+       status = csrSetRegulatoryDomain(pMac, domainIdIoctl, NULL);
+       if (status != eHAL_STATUS_SUCCESS)
+       {
+           smsLog( pMac, LOGE, FL("fail to set regId.status : %d"), status);
+       }
        if (!pMac->roam.configParam.fSupplicantCountryCodeHasPriority)
        {
            smsLog( pMac, LOGW, FL("Clearing currentCountryBssid, countryCode11d"));
@@ -7762,6 +7798,11 @@ eHalStatus sme_HandleChangeCountryCodeByUser(tpAniSirGlobal pMac,
     vos_mem_copy(pMac->scan.countryCodeCurrent, pMsg->countryCode,
                   WNI_CFG_COUNTRY_CODE_LEN);
 
+    status = csrSetRegulatoryDomain(pMac, reg_domain_id, NULL);
+    if (status != eHAL_STATUS_SUCCESS)
+    {
+        smsLog( pMac, LOGE, FL("fail to set regId.status : %d"), status);
+    }
     status = WDA_SetRegDomain(pMac, reg_domain_id, eSIR_TRUE);
 
     if (VOS_FALSE == is11dCountry )
@@ -7861,6 +7902,11 @@ eHalStatus sme_HandleChangeCountryCodeByCore(tpAniSirGlobal pMac, tAniGenericCha
     }
     else
     {
+        status = csrSetRegulatoryDomain(pMac, REGDOMAIN_WORLD, NULL);
+        if (status != eHAL_STATUS_SUCCESS)
+        {
+            smsLog( pMac, LOGE, FL("fail to set regId.status : %d"), status);
+        }
         status = csrInitGetChannels(pMac);
         if ( status != eHAL_STATUS_SUCCESS )
         {
@@ -11723,6 +11769,52 @@ void sme_disable_dfs_channel(tHalHandle hHal, bool disbale_dfs)
 }
 
 /* ---------------------------------------------------------------------------
+    \fn sme_Encryptmsgsend
+    \brief  SME API to issue encrypt message request
+    \param  hHal
+    \param  pCmd: Data to be encrypted
+    \- return eHalStatus
+    -------------------------------------------------------------------------*/
+eHalStatus sme_Encryptmsgsend (tHalHandle hHal,
+                               u8 *pCmd,
+                               int length,
+                               pEncryptMsgRSPCb encMsgCbk)
+{
+    eHalStatus status    = eHAL_STATUS_SUCCESS;
+    VOS_STATUS vosStatus = VOS_STATUS_SUCCESS;
+    tpAniSirGlobal pMac  = PMAC_STRUCT(hHal);
+    vos_msg_t vosMessage;
+    u8 *pEncryptMsg;
+
+    pEncryptMsg = vos_mem_malloc(length);
+    if ( !pEncryptMsg)
+    {
+        VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_ERROR,
+                "%s: Not able to allocate memory for "
+                "SIR_HAL_ENCRYPT_MSG_REQ",
+                __func__);
+        return eHAL_STATUS_FAILURE;
+    }
+
+    vos_mem_copy(pEncryptMsg, pCmd, length);
+
+    if (eHAL_STATUS_SUCCESS == (status = sme_AcquireGlobalLock(&pMac->sme))) {
+
+        pMac->sme.pEncMsgInfoParams.pEncMsgCbk = encMsgCbk;
+        pMac->sme.pEncMsgInfoParams.pUserData = hHal;
+        /* Serialize the req through MC thread */
+        vosMessage.bodyptr = pEncryptMsg;
+        vosMessage.type    = SIR_HAL_ENCRYPT_MSG_REQ;
+        vosStatus = vos_mq_post_message(VOS_MQ_ID_WDA, &vosMessage);
+        if (!VOS_IS_STATUS_SUCCESS(vosStatus))
+           status = eHAL_STATUS_FAILURE;
+
+        sme_ReleaseGlobalLock(&pMac->sme);
+    }
+    return(status);
+}
+
+/* ---------------------------------------------------------------------------
     \fn sme_RegisterBtCoexTDLSCallback
     \brief  Used to plug in callback function
             Which notify btcoex on or off.
@@ -11756,99 +11848,17 @@ eHalStatus sme_RegisterBtCoexTDLSCallback
 }
 
 /* ---------------------------------------------------------------------------
+    \fn smeNeighborMiddleOfRoaming
 
-    \fn smeNeighborRoamIsHandoffInProgress
-
-    \brief  This function is a wrapper to call csrNeighborRoamIsHandoffInProgress
+    \brief This function is a wrapper to call csrNeighborMiddleOfRoaming
 
     \param hHal - The handle returned by macOpen.
 
-    \return eANI_BOOLEAN_TRUE if reassoc in progress, eANI_BOOLEAN_FALSE otherwise
-
+    \return eANI_BOOLEAN_TRUE if reassoc in progress,
+            eANI_BOOLEAN_FALSE otherwise
 ---------------------------------------------------------------------------*/
-tANI_BOOLEAN smeNeighborRoamIsHandoffInProgress(tHalHandle hHal)
+
+tANI_BOOLEAN smeNeighborMiddleOfRoaming(tHalHandle hHal)
 {
-    return (csrNeighborRoamIsHandoffInProgress(PMAC_STRUCT(hHal)));
+    return (csrNeighborMiddleOfRoaming(PMAC_STRUCT(hHal)));
 }
-
-void sme_SetDefDot11Mode(tHalHandle hHal)
-{
-    tpAniSirGlobal pMac = PMAC_STRUCT( hHal );
-    csrSetDefaultDot11Mode(pMac);
-}
-
-eHalStatus sme_SetMiracastVendorConfig(tHalHandle hHal,
-    tANI_U32 iniNumBuffAdvert , tANI_U32 set_value)
-{
-    tpAniSirGlobal pMac = PMAC_STRUCT(hHal);
-    tANI_U8 mcsSet[SIZE_OF_SUPPORTED_MCS_SET];
-    tANI_U32 val = SIZE_OF_SUPPORTED_MCS_SET;
-
-    if (ccmCfgGetStr(hHal, WNI_CFG_SUPPORTED_MCS_SET, mcsSet, &val)
-                                        != eHAL_STATUS_SUCCESS)
-    {
-       VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_ERROR,
-           FL("failed to get ini param, WNI_CFG_SUPPORTED_MCS_SET"));
-       return eHAL_STATUS_FAILURE;
-    }
-
-    if (set_value)
-    {
-       if (pMac->miracastVendorConfig)
-       {
-         VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_INFO,
-          FL(" Miracast tuning already enabled!!"));
-         return eHAL_STATUS_SUCCESS;
-       }
-
-       VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_INFO,
-        FL("Enable Miracast tuning by disabling 64QAM rates, setting 4 blocks for aggregation and disabling probe response for broadcast probe in P2P-GO mode"));
-
-       if (ccmCfgSetInt(hHal, WNI_CFG_NUM_BUFF_ADVERT, 4,
-                  NULL, eANI_BOOLEAN_FALSE) == eHAL_STATUS_FAILURE)
-       {
-          VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_ERROR,
-            FL("Failure: Could not set WNI_CFG_NUM_BUFF_ADVERT"));
-          return eHAL_STATUS_FAILURE;
-       }
-       /* Disable 64QAM rates ie (MCS 5,6 and 7)
-        */
-       mcsSet[0]=0x1F;
-    }
-    else
-    {
-       if (!pMac->miracastVendorConfig)
-       {
-         VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_INFO,
-          FL(" Miracast tuning already disabled!!"));
-         return eHAL_STATUS_SUCCESS;
-       }
-
-       VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_INFO,
-        FL("Disable Miracast tuning by enabling all MCS rates, setting %d blocks for aggregation and enabling probe response for broadcast probe in P2P-GO mode"),
-       iniNumBuffAdvert);
-
-       if (ccmCfgSetInt(hHal, WNI_CFG_NUM_BUFF_ADVERT, iniNumBuffAdvert,
-                  NULL, eANI_BOOLEAN_FALSE) == eHAL_STATUS_FAILURE)
-       {
-          VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_ERROR,
-            FL("Failure: Could not set WNI_CFG_NUM_BUFF_ADVERT"));
-          return eHAL_STATUS_FAILURE;
-       }
-       /* Enable all MCS rates)
-        */
-       mcsSet[0]=0xFF;
-    }
-
-    if (ccmCfgSetStr(hHal, WNI_CFG_SUPPORTED_MCS_SET, mcsSet,
-          val, NULL, eANI_BOOLEAN_FALSE) == eHAL_STATUS_FAILURE)
-    {
-       VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_ERROR,
-         FL("Failure: Could not set WNI_CFG_SUPPORTED_MCS_SET"));
-       return eHAL_STATUS_FAILURE;
-    }
-
-    pMac->miracastVendorConfig = set_value;
-    return eHAL_STATUS_SUCCESS;
-}
-

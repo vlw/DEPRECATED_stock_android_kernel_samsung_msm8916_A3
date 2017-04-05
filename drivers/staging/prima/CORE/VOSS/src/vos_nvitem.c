@@ -56,8 +56,6 @@
 #include "wlan_nv_parser.h"
 #include "wlan_hdd_main.h"
 #include <net/cfg80211.h>
-#include <linux/firmware.h>
-#include <linux/vmalloc.h>
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(3,9,0))
 #define IEEE80211_CHAN_NO_80MHZ		1<<7
@@ -549,7 +547,6 @@ nvEFSTable_t *gnvEFSTable;
 /* EFS Table  to send the NV structure to HAL*/
 static nvEFSTable_t *pnvEFSTable;
 static v_U8_t *pnvEncodedBuf;
-static v_U8_t *pnvtmpBuf;
 static v_U8_t *pDictFile;
 static v_U8_t *pEncodedBuf;
 static v_SIZE_t nvReadEncodeBufSize;
@@ -1118,26 +1115,15 @@ VOS_STATUS vos_nv_open(void)
 
     status = hdd_request_firmware(WLAN_NV_FILE,
                                   ((VosContextType*)(pVosContext))->pHDDContext,
-                                  (v_VOID_t**)&pnvtmpBuf, &nvReadBufSize);
+                                  (v_VOID_t**)&pnvEncodedBuf, &nvReadBufSize);
 
-    if ((!VOS_IS_STATUS_SUCCESS( status )) || (!pnvtmpBuf))
+    if ((!VOS_IS_STATUS_SUCCESS( status )) || (!pnvEncodedBuf))
     {
        VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_FATAL,
                    "%s: unable to download NV file %s",
                    __func__, WLAN_NV_FILE);
        return VOS_STATUS_E_RESOURCES;
     }
-
-    pnvEncodedBuf = (v_U8_t *)vmalloc(nvReadBufSize);
-
-    if (NULL == pnvEncodedBuf) {
-        VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
-                    "%s : failed to allocate memory for NV", __func__);
-        return VOS_STATUS_E_NOMEM;
-    }
-    vos_mem_copy(pnvEncodedBuf, pnvtmpBuf, nvReadBufSize);
-    release_firmware(((hdd_context_t*)((VosContextType*)
-                        (pVosContext))->pHDDContext)->nv);
 
     vos_mem_copy(&magicNumber, &pnvEncodedBuf[sizeof(v_U32_t)], sizeof(v_U32_t));
 
@@ -1516,21 +1502,25 @@ VOS_STATUS vos_nv_open(void)
 error:
     vos_mem_free(pnvEFSTable);
     vos_mem_free(pEncodedBuf);
-    vfree(pnvEncodedBuf);
     return eHAL_STATUS_FAILURE ;
 }
 
 VOS_STATUS vos_nv_close(void)
 {
+    VOS_STATUS status = VOS_STATUS_SUCCESS;
     v_CONTEXT_t pVosContext= NULL;
          /*Get the global context */
     pVosContext = vos_get_global_context(VOS_MODULE_ID_SYS, NULL);
-
-    ((hdd_context_t*)((VosContextType*)(pVosContext))->pHDDContext)->nv = NULL;
+    status = hdd_release_firmware(WLAN_NV_FILE, ((VosContextType*)(pVosContext))->pHDDContext);
+    if ( !VOS_IS_STATUS_SUCCESS( status ))
+    {
+        VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
+                         "%s : vos_open failed",__func__);
+        return VOS_STATUS_E_FAILURE;
+    }
     vos_mem_free(pnvEFSTable);
     vos_mem_free(pEncodedBuf);
     vos_mem_free(pDictFile);
-    vfree(pnvEncodedBuf);
 
     gnvEFSTable=NULL;
     return VOS_STATUS_SUCCESS;
@@ -3796,10 +3786,10 @@ static int create_linux_regulatory_entry(struct wiphy *wiphy,
  * regulatory setting table.
  */
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,9,0))
-void __wlan_hdd_linux_reg_notifier(struct wiphy *wiphy,
+void wlan_hdd_linux_reg_notifier(struct wiphy *wiphy,
                 struct regulatory_request *request)
 #else
-int __wlan_hdd_linux_reg_notifier(struct wiphy *wiphy,
+int wlan_hdd_linux_reg_notifier(struct wiphy *wiphy,
                 struct regulatory_request *request)
 #endif
 {
@@ -3977,26 +3967,6 @@ int __wlan_hdd_linux_reg_notifier(struct wiphy *wiphy,
 #endif
 }
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,9,0))
-void wlan_hdd_linux_reg_notifier(struct wiphy *wiphy,
-                struct regulatory_request *request)
-{
-    vos_ssr_protect(__func__);
-    __wlan_hdd_linux_reg_notifier(wiphy, request);
-    vos_ssr_unprotect(__func__);
-    return;
-}
-#else
-int wlan_hdd_linux_reg_notifier(struct wiphy *wiphy,
-                struct regulatory_request *request)
-{
-    int ret;
-    vos_ssr_protect(__func__);
-    ret = __wlan_hdd_linux_reg_notifier(wiphy, request);
-    vos_ssr_unprotect(__func__);
-    return ret;
-}
-#endif
 
 /* initialize wiphy from NV.bin */
 VOS_STATUS vos_init_wiphy_from_nv_bin(void)
@@ -4301,10 +4271,10 @@ void* vos_nv_change_country_code_cb(void *pAdapter)
  * regulatory setting table.
  */
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,9,0))
-void __wlan_hdd_crda_reg_notifier(struct wiphy *wiphy,
+void wlan_hdd_crda_reg_notifier(struct wiphy *wiphy,
                 struct regulatory_request *request)
 #else
-int __wlan_hdd_crda_reg_notifier(struct wiphy *wiphy,
+int wlan_hdd_crda_reg_notifier(struct wiphy *wiphy,
                 struct regulatory_request *request)
 #endif
 {
@@ -4606,26 +4576,5 @@ int __wlan_hdd_crda_reg_notifier(struct wiphy *wiphy,
     return 0;
 #endif
 }
-
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,9,0))
-void wlan_hdd_crda_reg_notifier(struct wiphy *wiphy,
-                struct regulatory_request *request)
-{
-    vos_ssr_protect(__func__);
-    __wlan_hdd_crda_reg_notifier(wiphy, request);
-    vos_ssr_unprotect(__func__);
-    return;
-}
-#else
-int wlan_hdd_crda_reg_notifier(struct wiphy *wiphy,
-                struct regulatory_request *request)
-{
-    int ret;
-    vos_ssr_protect(__func__);
-    ret = __wlan_hdd_crda_reg_notifier(wiphy, request);
-    vos_ssr_unprotect(__func__);
-    return ret;
-}
-#endif
 
 #endif
