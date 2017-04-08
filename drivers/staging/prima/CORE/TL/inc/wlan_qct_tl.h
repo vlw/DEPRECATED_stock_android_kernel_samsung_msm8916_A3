@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2014 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2015 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -102,7 +102,10 @@ when        who    what, where, why
 #define WLANTL_LLC_SNAP_OFFSET                0
 
 /*Size of the LLC/SNAP header*/
-#define WLANTL_LLC_SNAP_SIZE                   8
+#define WLANTL_LLC_SNAP_SIZE                  8
+
+/* Number of Tx Queues, this should be same as NUM_TX_QUEUES in HDD */
+#define WLANTL_NUM_TX_QUEUES                  5
 
 /*============================================================================
  *     GENERIC STRUCTURES - not belonging to TL 
@@ -153,10 +156,18 @@ when        who    what, where, why
  --------------------------------------------------------------------------*/
 typedef enum
 {
+  /* The values from 0-3 correspond both to the TL tx queue
+   * id and the also the AC corresponding to the packets queued
+   */
   WLANTL_AC_BK = 0,
   WLANTL_AC_BE = 1,
   WLANTL_AC_VI = 2,
-  WLANTL_AC_VO = 3
+  WLANTL_AC_VO = 3,
+  /* WLANTL_AC_HIGH_PRIO corresponds to the new queue
+   * added for handling eapol/wapi/dhcp packets. The AC for the
+   * packets in this queue has to be extracted separately
+   */
+  WLANTL_AC_HIGH_PRIO = 4
 }WLANTL_ACEnumType; 
 
 /*---------------------------------------------------------------------------
@@ -302,7 +313,7 @@ typedef struct
 typedef struct
 {
   /*AC weight for WFQ*/
-  v_U8_t   ucAcWeights[WLANTL_MAX_AC]; 
+  v_U8_t   ucAcWeights[WLANTL_NUM_TX_QUEUES];
 
   /*Delayed trigger frame timmer: - used by TL to send trigger frames less 
     often when it has established that the App is suspended*/
@@ -385,22 +396,13 @@ typedef enum
 }WLANTL_STAPriorityType;
 
 /*---------------------------------------------------------------------------
-  EAPOL SUB TYPE
----------------------------------------------------------------------------*/
-typedef enum
-{
-  EAPOL_UNKNOWN  = 0,
-  EAPOL_M1,
-  EAPOL_M2,
-  EAPOL_M3,
-  EAPOL_M4
-}EAPOL_SubType;
-
-/*---------------------------------------------------------------------------
   Meta information requested from HDD by TL 
 ---------------------------------------------------------------------------*/      
 typedef struct
 {
+  /* Save the AC of the packet */
+  WLANTL_ACEnumType ac;
+
   /* TID of the packet being sent */
   v_U8_t    ucTID;
 
@@ -409,10 +411,6 @@ typedef struct
 
   /* notifying TL if this is an EAPOL frame or not */
   v_U8_t    ucIsEapol;
-
-  /* Store Eapol Subtype */
-  EAPOL_SubType    ucEapolSubType;
-
 #ifdef FEATURE_WLAN_WAPI
   /* notifying TL if this is a WAI frame or not */
   v_U8_t    ucIsWai;
@@ -685,22 +683,6 @@ typedef VOS_STATUS (*WLANTL_STAFetchPktCBType)(
                                             WLANTL_ACEnumType     ucAC,
                                             vos_pkt_t**           vosDataBuff,
                                             WLANTL_MetaInfoType*  tlMetaInfo);
-
-/*----------------------------------------------------------------------------
-
-  DESCRIPTION
-    ULA callback registered with TL.
-    It is called by the TL when it receives EAPOL 4/4.
-
-
-  PARAMETERS
-
-    IN
-    callbackCtx:    padapter context used in callback.
-
-----------------------------------------------------------------------------*/
-
-typedef VOS_STATUS (*WLANTL_STAUlaCompleteCBType)( v_PVOID_t callbackCtx );
 
 /*----------------------------------------------------------------------------
 
@@ -2878,16 +2860,16 @@ void WLANTL_PostResNeeded(v_PVOID_t pvosGCtx);
   FUNCTION    WLANTL_Finish_ULA
 
   DESCRIPTION
-     This function is used by HDD to notify TL to finish Upper layer
-     authentication incase the last EAPOL packet is pending in the TL queue.
-     To avoid the race condition between sme set key and the last EAPOL packet
+     This function is used by HDD to notify TL to finish Upper layer authentication
+     incase the last EAPOL packet is pending in the TL queue. 
+     To avoid the race condition between sme set key and the last EAPOL packet 
      the HDD module calls this function just before calling the sme_RoamSetKey.
-
+   
   DEPENDENCIES
 
     TL must have been initialized before this gets called.
 
-
+   
   PARAMETERS
 
    callbackRoutine:   HDD Callback function.
@@ -2896,15 +2878,13 @@ void WLANTL_PostResNeeded(v_PVOID_t pvosGCtx);
   RETURN VALUE
 
    VOS_STATUS_SUCCESS/VOS_STATUS_FAILURE
-
+   
   SIDE EFFECTS
-
+   
 ============================================================================*/
 
 VOS_STATUS WLANTL_Finish_ULA( void (*callbackRoutine) (void *callbackContext),
-                              void *callbackContext,
-                              v_PVOID_t pvosGCtx,
-                              v_U8_t ucSTAId);
+                              void *callbackContext);
 
 /*===============================================================================
   FUNCTION       WLANTL_UpdateRssiBmps

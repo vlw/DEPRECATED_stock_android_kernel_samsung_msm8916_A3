@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2014 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2015 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -49,7 +49,6 @@
 #include <linux/etherdevice.h>
 //#include <vos_list.h>
 #include <vos_types.h>
-#include <vos_sched.h>
 #include <aniGlobal.h>
 #include <halTypes.h>
 #include <net/ieee80211_radiotap.h>
@@ -636,14 +635,14 @@ xmit_end:
 }
 
 /**============================================================================
-  @brief __hdd_softap_tx_timeout() - Function called by OS if there is any
+  @brief hdd_softap_tx_timeout() - Function called by OS if there is any
   timeout during transmission. Since HDD simply enqueues packet
   and returns control to OS right away, this would never be invoked
 
   @param dev : [in] pointer to Libra network device
   @return    : None
   ===========================================================================*/
-void __hdd_softap_tx_timeout(struct net_device *dev)
+void hdd_softap_tx_timeout(struct net_device *dev)
 {
    hdd_adapter_t *pAdapter =  WLAN_HDD_GET_PRIV_PTR(dev);
    struct netdev_queue *txq;
@@ -714,37 +713,21 @@ void __hdd_softap_tx_timeout(struct net_device *dev)
 
 } 
 
-void hdd_softap_tx_timeout(struct net_device *dev)
-{
-   vos_ssr_protect(__func__);
-   __hdd_softap_tx_timeout(dev);
-   vos_ssr_unprotect(__func__);
-   return;
-}
 
 /**============================================================================
-  @brief __hdd_softap_stats() - Function registered with the Linux OS for
+  @brief hdd_softap_stats() - Function registered with the Linux OS for 
   device TX/RX statistic
 
   @param dev      : [in] pointer to Libra network device
   
   @return         : pointer to net_device_stats structure
   ===========================================================================*/
-struct net_device_stats* __hdd_softap_stats(struct net_device *dev)
+struct net_device_stats* hdd_softap_stats(struct net_device *dev)
 {
    hdd_adapter_t* priv = netdev_priv(dev);
    return &priv->stats;
 }
 
-struct net_device_stats* hdd_softap_stats(struct net_device *dev)
-{
-   struct net_device_stats *priv_stats;
-   vos_ssr_protect(__func__);
-   priv_stats = __hdd_softap_stats(dev);
-   vos_ssr_unprotect(__func__);
-
-   return priv_stats;
-}
 
 /**============================================================================
   @brief hdd_softap_init_tx_rx() - Init function to initialize Tx/RX
@@ -1049,10 +1032,10 @@ VOS_STATUS hdd_softap_tx_complete_cbk( v_VOID_t *vosContext,
 
    //Get the Adapter context.
    pAdapter = (hdd_adapter_t *)netdev_priv(((struct sk_buff *)pOsPkt)->dev);
-   if(pAdapter == NULL)
+   if((pAdapter == NULL) || (WLAN_HDD_ADAPTER_MAGIC != pAdapter->magic))
    {
       VOS_TRACE( VOS_MODULE_ID_HDD_SAP_DATA, VOS_TRACE_LEVEL_ERROR,
-                 "%s: HDD adapter context is Null", __func__);
+                 "%s: HDD adapter context is invalid", __func__);
    }
    else
    {
@@ -1291,7 +1274,6 @@ VOS_STATUS hdd_softap_tx_fetch_packet_cbk( v_VOID_t *vosContext,
          VOS_TRACE( VOS_MODULE_ID_HDD_SAP_DATA, VOS_TRACE_LEVEL_INFO_HIGH,
                     "%s: VOS packet is EAPOL packet", __func__);
          pPktMetaInfo->ucIsEapol = 1;
-         pPktMetaInfo->ucEapolSubType = hdd_FindEapolSubType(pVosPacket);
       }
    }
  
@@ -1302,7 +1284,7 @@ VOS_STATUS hdd_softap_tx_fetch_packet_cbk( v_VOID_t *vosContext,
       if (VOS_PKT_PROTO_TYPE_EAPOL & proto_type)
       {
          VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
-                   "SAP TX EAPOL SubType %d",pPktMetaInfo->ucEapolSubType);
+                   "SAP TX EAPOL");
       }
       else if (VOS_PKT_PROTO_TYPE_DHCP & proto_type)
       {
@@ -1312,6 +1294,7 @@ VOS_STATUS hdd_softap_tx_fetch_packet_cbk( v_VOID_t *vosContext,
    }
 //xg: @@@@: temporarily disble these. will revisit later
    {
+      pPktMetaInfo->ac = ac;
       pPktMetaInfo->ucUP = pktNode->userPriority;
       pPktMetaInfo->ucTID = pPktMetaInfo->ucUP;
    }
@@ -1450,7 +1433,6 @@ VOS_STATUS hdd_softap_rx_packet_cbk( v_VOID_t *vosContext,
    vos_pkt_t* pNextVosPacket;   
    hdd_context_t *pHddCtx = NULL;   
    v_U8_t proto_type;
-   EAPOL_SubType eapolSubType;
 
    //Sanity check on inputs
    if ( ( NULL == vosContext ) || 
@@ -1518,12 +1500,6 @@ VOS_STATUS hdd_softap_rx_packet_cbk( v_VOID_t *vosContext,
          return VOS_STATUS_E_FAILURE;
       }
 
-      if (pHddCtx->cfg_ini->gEnableDebugLog)
-      {
-         if(hdd_IsEAPOLPacket(pVosPacket))
-            eapolSubType = hdd_FindEapolSubType(pVosPacket);
-      }
-
       // Extract the OS packet (skb).
       // Tell VOS to detach the OS packet from the VOS packet
       status = vos_pkt_get_os_packet( pVosPacket, (v_VOID_t **)&skb, VOS_TRUE );
@@ -1556,7 +1532,7 @@ VOS_STATUS hdd_softap_rx_packet_cbk( v_VOID_t *vosContext,
          if (VOS_PKT_PROTO_TYPE_EAPOL & proto_type)
          {
             VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
-                      "SAP RX EAPOL SubType %d",eapolSubType);
+                      "SAP RX EAPOL");
          }
          else if (VOS_PKT_PROTO_TYPE_DHCP & proto_type)
          {

@@ -318,15 +318,15 @@ int limProcessFTPreAuthReq(tpAniSirGlobal pMac, tpSirMsgQ pMsg)
     if (psessionEntry->currentOperChannel != pMac->ft.ftPEContext.pFTPreAuthReq->preAuthchannelNum) 
     {
         // Need to suspend link only if the channels are different
-        limLog(pMac, LOG1, FL(" Performing pre-auth on different"
-               " channel (session %p)"), psessionEntry);
+        PELOG2(limLog(pMac,LOG2,"%s: Performing pre-auth on different"
+               " channel (session %p)", __func__, psessionEntry);)
         limSuspendLink(pMac, eSIR_CHECK_ROAMING_SCAN, FTPreAuthSuspendLinkHandler, 
                        (tANI_U32 *)psessionEntry); 
     }
     else 
     {
-        limLog(pMac, LOG1, FL(" Performing pre-auth on same"
-               " channel (session %p)"), psessionEntry);
+        PELOG2(limLog(pMac,LOG2,"%s: Performing pre-auth on same"
+               " channel (session %p)", __func__, psessionEntry);)
         // We are in the same channel. Perform pre-auth
         limPerformFTPreAuth(pMac, eHAL_STATUS_SUCCESS, NULL, psessionEntry);
     }
@@ -364,9 +364,9 @@ void limPerformFTPreAuth(tpAniSirGlobal pMac, eHalStatus status, tANI_U32 *data,
     pMac->ft.ftPEContext.psavedsessionEntry = psessionEntry;
 
 #if defined WLAN_FEATURE_VOWIFI_11R_DEBUG
-    limLog(pMac, LOG1, FL("Entered wait auth2 state for FT"
-           " (old session %p)"),
-           pMac->ft.ftPEContext.psavedsessionEntry);
+    PELOG2(limLog(pMac,LOG2,"Entered wait auth2 state for FT"
+           " (old session %p)",
+           pMac->ft.ftPEContext.psavedsessionEntry);)
 #endif
 
 
@@ -754,6 +754,7 @@ tpPESession limFillFTSession(tpAniSirGlobal pMac,
         pftSessionEntry->ssId.length);
 
     wlan_cfgGetInt(pMac, WNI_CFG_DOT11_MODE, &selfDot11Mode);
+    limLog(pMac, LOG1, FL("selfDot11Mode %d"),selfDot11Mode );
     pftSessionEntry->dot11mode = selfDot11Mode;
     pftSessionEntry->vhtCapability = (IS_DOT11_MODE_VHT(pftSessionEntry->dot11mode)
                                      && pBeaconStruct->VHTCaps.present);

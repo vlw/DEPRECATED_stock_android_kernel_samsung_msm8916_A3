@@ -430,6 +430,7 @@ void limContinuePostChannelScan(tpAniSirGlobal pMac)
         (limActiveScanAllowed(pMac, channelNum)))
     {
         TX_TIMER *periodicScanTimer;
+        PELOG2(limLog(pMac, LOG2, FL("ACTIVE Scan chan %d, sending probe"), channelNum);)
 
         pMac->lim.probeCounter++;
         do
@@ -437,8 +438,8 @@ void limContinuePostChannelScan(tpAniSirGlobal pMac)
             /* Prepare and send Probe Request frame for all the SSIDs present in the saved MLM 
                     */
        
-            limLog(pMac, LOG1, FL("sending ProbeReq number %d, for SSID %s on channel: %d"),
-                                                i, pMac->lim.gpLimMlmScanReq->ssId[i].ssId, channelNum);
+            PELOGE(limLog(pMac, LOG1, FL("sending ProbeReq number %d, for SSID %s on channel: %d"),
+                                                i, pMac->lim.gpLimMlmScanReq->ssId[i].ssId, channelNum);)
             // include additional IE if there is
             status = limSendProbeReqMgmtFrame( pMac, &pMac->lim.gpLimMlmScanReq->ssId[i],
                pMac->lim.gpLimMlmScanReq->bssId, channelNum, pMac->lim.gSelfMacAddr, 
@@ -524,7 +525,7 @@ void limContinuePostChannelScan(tpAniSirGlobal pMac)
     else
     {
         tANI_U32 val;
-        limLog(pMac, LOG1, FL("START PASSIVE Scan chan %d"), channelNum);
+        PELOG2(limLog(pMac, LOG2, FL("START PASSIVE Scan chan %d"), channelNum);)
 
         /// Passive Scanning. Activate maxChannelTimer
         MTRACE(macTrace(pMac, TRACE_CODE_TIMER_DEACTIVATE, NO_SESSION, eLIM_MAX_CHANNEL_TIMER));
@@ -1298,8 +1299,8 @@ limContinueChannelScan(tpAniSirGlobal pMac)
     }
 
     channelNum = limGetCurrentScanChannel(pMac);
-    limLog(pMac, LOG1, FL("Current Channel to be scanned is %d"),
-           channelNum);
+    PELOG2(limLog(pMac, LOG2, FL("Current Channel to be scanned is %d"),
+           channelNum);)
 
     limSendHalStartScanReq(pMac, channelNum, eLIM_HAL_START_SCAN_WAIT_STATE);
     return;
