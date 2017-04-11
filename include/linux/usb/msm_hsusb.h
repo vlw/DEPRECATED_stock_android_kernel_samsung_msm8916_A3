@@ -104,7 +104,14 @@ enum msm_usb_phy_type {
 	SNPS_FEMTO_PHY,
 };
 
-#define IDEV_CHG_MAX	1500
+#ifdef CONFIG_FORCE_FAST_CHARGE
+
+#define IDEV_CHG_MAX		1500
+#define IDEV_CHG_MAX_FAST	1500
+#else
+#define IDEV_CHG_MAX		1050
+#define IDEV_CHG_MAX_FAST	1050
+#endif
 #define IDEV_CHG_MIN	500
 #define IUNIT		100
 
