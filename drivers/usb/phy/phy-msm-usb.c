@@ -3073,7 +3073,7 @@ static void msm_otg_sm_work(struct work_struct *w)
 #else
 					msm_otg_notify_charger(motg,
 							IDEV_CHG_MAX);
-#endinf
+#endif
 					pm_runtime_put_sync(otg->phy->dev);
 					break;
 				case USB_FLOATED_CHARGER:
