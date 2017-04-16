@@ -3049,8 +3049,7 @@ static void msm_otg_sm_work(struct work_struct *w)
 			}
 			clear_bit(B_BUS_REQ, &motg->inputs);
 			set_bit(A_BUS_REQ, &motg->inputs);
-			otg->phy->state = OTG_STATE_A_IDLE;
-			work = 1;
+			otg->phy->state = OTG_STATE_A_IDLE;			work = 1;
 		} else if (test_bit(B_SESS_VLD, &motg->inputs)) {
 			pr_debug("b_sess_vld\n");
 			switch (motg->chg_state) {
@@ -3073,7 +3072,7 @@ static void msm_otg_sm_work(struct work_struct *w)
 #else
 					msm_otg_notify_charger(motg,
 							IDEV_CHG_MAX);
-#endinf
+#endif
 					pm_runtime_put_sync(otg->phy->dev);
 					break;
 				case USB_FLOATED_CHARGER:
