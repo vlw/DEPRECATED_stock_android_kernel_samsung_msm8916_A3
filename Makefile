@@ -410,7 +410,7 @@ KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
 		   -Werror-implicit-function-declaration \
 		   -Wno-format-security \
 		   -fno-delete-null-pointer-checks \
-		   -Wno-unused-variable -Wno-bool-compare -Wno-discarded-array-qualifiers -Wno-logical-not-parentheses -Wno-tautological-compare \
+		   -Wno-unused-variable \
 		   -fmodulo-sched -fmodulo-sched-allow-regmoves \
 		   -fivopts -funswitch-loops -fpredictive-commoning -fgcse-after-reload \
 		   -pipe -fno-pic -O3 \
